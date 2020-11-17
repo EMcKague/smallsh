@@ -256,7 +256,7 @@ void cmdprompt(){
 
     // checks for comments or blank line
     // if blank or comment, continue onword
-    if((args[0] == NULL) || !strcmp(args[0], "#")){
+    if((args[0] == NULL) || !strncmp(args[0], "#", 1)){
     continue;
     }
 

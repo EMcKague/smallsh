@@ -45,15 +45,35 @@ void readInput(char *input){
 
 // takes each word in input, seperated by a space, and puts each word into an args element 
 // returns the number of elements in args
-int parseInput(char *input, char *args[]){
+int parseInput(char *input, char *args[], char *outputFile, char *inputFile, int *redirectOut, int *redirectIn){
   char *token = strtok(input, " ");
   int count = 0;
-  
+
   while(token != NULL){
-    args[count] = malloc(strlen(token) * sizeof(char));
-    strcpy(args[count], token);
-    token = strtok(NULL, " ");
-    count ++;
+
+    // if redirecting input, the next word is the input file
+    if(!strcmp(token, "<")){
+      token = strtok(NULL, " ");
+      strcpy(inputFile, token);
+      *redirectIn = 1;
+      token = strtok(NULL, " ");
+    }
+
+    // if redirecting output, the next word is the output file
+    else if(!strcmp(token, ">")){
+      token = strtok(NULL, " ");
+      strcpy(outputFile, token);
+      *redirectOut = 1;
+      token = strtok(NULL, " ");
+    }
+
+    // if not redirecting, put all words input into args
+    else{
+      args[count] = malloc(strlen(token) * sizeof(char));
+      strcpy(args[count], token);
+      token = strtok(NULL, " ");
+      count ++;
+    }
   }
   return count;
 }
@@ -64,35 +84,6 @@ void printArray(char* someArray[]){
   for(int i = 0; someArray[i]!= 0; i++){
     printf("Array Element %d: %s \n", i, someArray[i]);
   }
-}
-
-// checks args for "<" or ">"
-// if found places element into proper filepath and changes int to reflect the direction
-// returns 1 if directionals were found and 0 if no directionals were found
-int getRedirection(char *args[], char *outputFile, char *inputFile, int *redirectOut, int *redirectIn){
-  int count = 0;
- 
-  for(int i = 0; args[i] != NULL; i++){
-    
-    if(!strcmp(args[i], "<")){
-      strcpy(inputFile, args[i+1]);
-      *redirectIn = 1;
-      count++;
-      }
-    if(!strcmp(args[i], ">")){
-      strcpy(outputFile, args[i+1]);
-      *redirectOut = 1;
-      count++;
-    }
-  }
-
-  if(count == 0){
-    return 0;
-  }
-  else{
-    return 1;
-  }
-
 }
 
 // called after verifying that args[0] is "cd"
@@ -212,7 +203,6 @@ void cmdprompt(){
   while(run){
     char *input = {NULL};
     char *args[512] = {NULL};
-    char *execArray[512] = {NULL};
     char inputFile[30];
     char outputFile[30];
     char pid[10];
@@ -227,32 +217,15 @@ void cmdprompt(){
     readInput(input);
 
     // put input in args array 
-    count = parseInput(input, args);
+    count = parseInput(input, args, outputFile, inputFile, &redirectOut, &redirectIn);
     lastElement = count -1;
-
-    // check for file directionals
-    int check = getRedirection(args, outputFile, inputFile, &redirectOut, &redirectIn);
-
-    // fill execArray based on directionals
-    // used for exec call 
-    if(check){
-      execArray[0] = (char *)malloc((strlen(args[0])+1)*sizeof(char));
-      strcpy(execArray[0],args[0]);
-    }
-    else{
-      for(int i = 0; args[i] != NULL; i++){
-        execArray[i] = (char *)malloc((strlen(args[i])+1)*sizeof(char));
-        strcpy(execArray[i],args[i]);
-      }
-    }
 
     // expand $$ into pid 
     // checks for $$ in each args and replace with pid num
-    replace$$(execArray, pid);
-
+    replace$$(args, pid);
 
     // check for background cmd
-    checkBackground(execArray, &background, lastElement);
+    checkBackground(args, &background, lastElement);
 
     // checks for comments or blank line
     // if blank or comment, continue onword
@@ -261,14 +234,14 @@ void cmdprompt(){
     }
 
     // built in commands
-    else if(!strcmp(execArray[0], "exit")){
+    else if(!strcmp(args[0], "exit")){
       run = 0;
     }
-    else if(!strcmp(execArray[0], "status")){
+    else if(!strcmp(args[0], "status")){
       getStatus(status);
     }
-    else if(!strcmp(execArray[0], "cd")){
-      changeDirectory(execArray);
+    else if(!strcmp(args[0], "cd")){
+      changeDirectory(args);
     }
 
     
@@ -333,7 +306,7 @@ void cmdprompt(){
           }
 
           // used to call all other cmds 
-          status = execvp(execArray[0], execArray);
+          status = execvp(args[0], args);
 
           if(status == -1){
             kill(getpid(),SIGTERM);
